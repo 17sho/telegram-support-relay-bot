@@ -1,0 +1,23 @@
+# Secrets and local data
+.env
+.env.*
+!.env.example
+.dev.vars
+.wrangler/
+*.sqlite
+*.sqlite3
+*.db
+data/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

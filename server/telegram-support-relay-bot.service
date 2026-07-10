@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Support Relay Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/telegram-support-relay-bot/server
+EnvironmentFile=/opt/telegram-support-relay-bot/server/.env
+ExecStart=/opt/telegram-support-relay-bot/server/.venv/bin/python bot.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
