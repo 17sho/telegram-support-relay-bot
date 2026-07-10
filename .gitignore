@@ -4,6 +4,7 @@
 !.env.example
 .dev.vars
 .wrangler/
+wrangler.toml
 *.sqlite
 *.sqlite3
 *.db
