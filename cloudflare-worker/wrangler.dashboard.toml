@@ -1,0 +1,13 @@
+name = "telegram-support-relay-bot"
+main = "src/index.ts"
+compatibility_date = "2026-07-09"
+
+[vars]
+DEFAULT_VERIFY_INTERVAL_MINUTES = "360"
+MESSAGES_PER_MINUTE = "40"
+
+# Dashboard deployment: replace this value in your own Fork before importing it into Cloudflare.
+[[d1_databases]]
+binding = "DB"
+database_name = "telegram-support-relay-bot-db"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"

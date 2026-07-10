@@ -49,6 +49,8 @@ Open [@userinfobot](https://t.me/userinfobot), send any message, and record the 
 | Cloudflare Worker | Serverless and low-maintenance hosting | Cloudflare provides HTTPS | D1 | No |
 
 > **Choose only one edition.** Never run both with the same Bot Token.
+>
+> Prefer a browser-only setup? A detailed **[Chinese Cloudflare Dashboard guide](docs/CLOUDFLARE_DASHBOARD_ZH.md)** is also available.
 
 ---
 

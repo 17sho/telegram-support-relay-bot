@@ -49,6 +49,8 @@
 | Cloudflare Worker 版 | 无服务器、低维护部署 | Cloudflare 自动提供 | D1 | 不需要 |
 
 > **只选择一种方式。** 不要让两个版本同时使用同一个 Bot Token，否则 Webhook 和长轮询会互相冲突。
+>
+> 不想使用命令行？请看 **[Cloudflare 网页版部署指南](docs/CLOUDFLARE_DASHBOARD_ZH.md)**，只需 GitHub 和 Cloudflare Dashboard。
 
 ---
 
