@@ -4,6 +4,7 @@ compatibility_date = "2026-07-09"
 
 [vars]
 DEFAULT_VERIFY_INTERVAL_MINUTES = "360"
+MESSAGES_PER_MINUTE = "40"
 
 # Run `pnpm wrangler d1 create telegram-support-relay-bot-db`, then replace this placeholder.
 [[d1_databases]]

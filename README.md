@@ -19,6 +19,8 @@
 - 会话记录分页及媒体预览
 - 屏蔽名单和解除屏蔽二次确认
 - 每个用户独立的人机验证、验证间隔和永久豁免
+- 默认每位用户每分钟最多 40 条消息，可通过环境变量调整；超过限制后必须重新完成人机验证
+- 有效减少恶意刷消息，保护管理员后台和 Cloudflare 免费额度
 - 管理员消息撤回
 - 首次 `/start` 使用说明及 `/help` 完整帮助
 - 北京时间显示
@@ -90,6 +92,7 @@ nano .env
 BOT_TOKEN=在BotFather获得的Token
 ADMIN_IDS=你的Telegram数字ID
 DEFAULT_VERIFY_INTERVAL_MINUTES=360
+MESSAGES_PER_MINUTE=40
 DATA_DIR=./data
 ```
 
@@ -98,6 +101,7 @@ DATA_DIR=./data
 - `BOT_TOKEN`：BotFather 提供的完整 Token。
 - `ADMIN_IDS`：管理员数字 ID。多个管理员使用英文逗号分隔，例如 `123456789,987654321`。
 - `DEFAULT_VERIFY_INTERVAL_MINUTES`：用户验证有效时长，默认 `360` 分钟。
+- `MESSAGES_PER_MINUTE`：每位非豁免用户每分钟允许的消息数，默认 `40`；超限后要求重新验证。
 - `DATA_DIR`：SQLite 数据目录。建议保持 `./data`。
 
 限制配置文件权限：

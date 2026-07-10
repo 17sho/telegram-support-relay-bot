@@ -23,7 +23,8 @@ DB_PATH = DATA_DIR / "relay.db"
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").split(",") if x}
 MAX_TEXT = 3500
-DEFAULT_VERIFY_INTERVAL_MINUTES = 360
+DEFAULT_VERIFY_INTERVAL_MINUTES = int(os.environ.get("DEFAULT_VERIFY_INTERVAL_MINUTES", "360"))
+MESSAGES_PER_MINUTE = max(1, int(os.environ.get("MESSAGES_PER_MINUTE", "40")))
 MIN_VERIFY_INTERVAL_MINUTES = 1
 MAX_VERIFY_INTERVAL_MINUTES = 43200
 VERIFY_INTERVAL_PRESETS = [(1, "1分钟测试"), (60, "1小时"), (360, "6小时"), (1440, "24小时")]
@@ -90,6 +91,11 @@ def init_db() -> None:
           blocked_at text,
           updated_at text
         );
+        create table if not exists rate_limits(
+          user_id integer primary key,
+          window_started_at text not null,
+          message_count integer not null default 0
+        );
         create table if not exists settings(
           key text primary key,
           value text not null,
@@ -127,6 +133,38 @@ def parse_time(value: str | None) -> datetime | None:
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return None
+
+
+def consume_rate_limit(user_id: int) -> bool:
+    """Count an inbound message and return False once the fixed one-minute window is exceeded."""
+    current = datetime.now()
+    with db() as conn:
+        row = conn.execute("select window_started_at,message_count from rate_limits where user_id=?", (user_id,)).fetchone()
+        started = parse_time(row["window_started_at"]) if row else None
+        if not row or not started or current - started >= timedelta(minutes=1):
+            conn.execute(
+                "insert into rate_limits(user_id,window_started_at,message_count) values(?,?,1) "
+                "on conflict(user_id) do update set window_started_at=excluded.window_started_at,message_count=1",
+                (user_id, now()),
+            )
+            return True
+        count = int(row["message_count"]) + 1
+        conn.execute("update rate_limits set message_count=? where user_id=?", (count, user_id))
+        return count <= MESSAGES_PER_MINUTE
+
+
+def reset_rate_limit(user_id: int) -> None:
+    with db() as conn:
+        conn.execute("delete from rate_limits where user_id=?", (user_id,))
+
+
+def force_reverify(user_id: int) -> None:
+    with db() as conn:
+        conn.execute(
+            "insert into user_status(user_id,verified,blocked,challenge_answer,updated_at) values(?,?,?,?,?) "
+            "on conflict(user_id) do update set verified=0, challenge_answer='', updated_at=excluded.updated_at",
+            (user_id, 0, 0, "", now()),
+        )
 
 
 def is_admin(user_id: int | None) -> bool:
@@ -648,6 +686,12 @@ async def forward_to_admins(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if is_blocked(user.id):
         await msg.reply_text("当前会话暂不可用。")
         return
+    status_row = get_user_status(user.id)
+    if not (status_row and status_row["verify_exempt"]) and not consume_rate_limit(user.id):
+        force_reverify(user.id)
+        question, keyboard = create_challenge(user.id)
+        await msg.reply_text(f"发送过于频繁（每分钟最多 {MESSAGES_PER_MINUTE} 条），请重新完成人机验证：{question}", reply_markup=keyboard)
+        return
     if not is_verified(user.id):
         question, keyboard = create_challenge(user.id)
         await msg.reply_text(f"请先完成人机验证：{question}", reply_markup=keyboard)
@@ -737,6 +781,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await query.message.reply_text("你已被管理员永久豁免验证，可以直接发送内容。")
         elif row and not row["blocked"] and answer == (row["challenge_answer"] or ""):
             set_verified(user_id)
+            reset_rate_limit(user_id)
             await query.answer("验证通过")
             await delete_message_quietly(query.message)
             await query.message.reply_text("验证通过。现在可以直接发送内容，我会转给管理员。")

@@ -19,6 +19,8 @@ This repository provides two alternative implementations:
 - Paginated conversation history with media preview
 - Block list and confirmation before unblocking
 - Per-user human verification, verification interval, and permanent exemption
+- Configurable per-user message rate limit (40 messages per minute by default); exceeding it requires human verification again
+- Helps prevent message flooding and protects administrator chats and Cloudflare free-tier quotas
 - Retraction of messages sent by an administrator
 - First-run `/start` tutorial and complete `/help` reference
 - Beijing time display
@@ -90,6 +92,7 @@ Set the following values:
 BOT_TOKEN=your-token-from-BotFather
 ADMIN_IDS=your-numeric-Telegram-ID
 DEFAULT_VERIFY_INTERVAL_MINUTES=360
+MESSAGES_PER_MINUTE=40
 DATA_DIR=./data
 ```
 
@@ -98,6 +101,7 @@ Configuration reference:
 - `BOT_TOKEN`: the complete Token from BotFather.
 - `ADMIN_IDS`: numeric administrator ID. Separate multiple IDs with commas, for example `123456789,987654321`.
 - `DEFAULT_VERIFY_INTERVAL_MINUTES`: how long verification remains valid; the default is `360` minutes.
+- `MESSAGES_PER_MINUTE`: per-user message allowance per minute, default `40`; non-exempt users must verify again after exceeding it.
 - `DATA_DIR`: SQLite storage directory. Keeping `./data` is recommended.
 
 Restrict access to the configuration:

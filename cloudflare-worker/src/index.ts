@@ -3,6 +3,7 @@ type Env = {
   BOT_TOKEN: string;
   ADMIN_IDS: string;
   DEFAULT_VERIFY_INTERVAL_MINUTES?: string;
+  MESSAGES_PER_MINUTE?: string;
 };
 
 type TgUser = { id: number; is_bot?: boolean; first_name?: string; last_name?: string; username?: string };
@@ -29,6 +30,7 @@ type DbMsg = { id: number; user_id: number; direction: string; kind: string; tex
 const MAX_TEXT = 3500;
 const VERIFY_INTERVAL_PRESETS: [number, string][] = [[1, "1分钟测试"], [60, "1小时"], [360, "6小时"], [1440, "24小时"]];
 const DEFAULT_VERIFY_INTERVAL_MINUTES = 360;
+const DEFAULT_MESSAGES_PER_MINUTE = 40;
 const MIN_VERIFY_INTERVAL_MINUTES = 1;
 const MAX_VERIFY_INTERVAL_MINUTES = 43200;
 
@@ -84,6 +86,7 @@ async function ensureSchema(env: Env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_state(admin_id INTEGER PRIMARY KEY, selected_user_id INTEGER, updated_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_onboarding(admin_id INTEGER PRIMARY KEY, welcomed_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS user_status(user_id INTEGER PRIMARY KEY, verified INTEGER NOT NULL DEFAULT 0, blocked INTEGER NOT NULL DEFAULT 0, verify_exempt INTEGER NOT NULL DEFAULT 0, verify_interval_minutes INTEGER, challenge_answer TEXT, challenge_at TEXT, verified_at TEXT, blocked_at TEXT, updated_at TEXT)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS rate_limits(user_id INTEGER PRIMARY KEY, window_started_at TEXT NOT NULL, message_count INTEGER NOT NULL DEFAULT 0)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at DESC)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_admin_message ON messages(admin_message_id)"),
   ]);
@@ -95,6 +98,20 @@ async function getInterval(env: Env, uid: number) { const s = await status(env, 
 async function lastInboundAt(env: Env, uid: number) { const row = await env.DB.prepare("SELECT created_at FROM messages WHERE user_id=? AND direction='user' ORDER BY id DESC LIMIT 1").bind(uid).first<any>(); return row?.created_at ? Date.parse(row.created_at) : null; }
 async function isVerified(env: Env, uid: number) { const s = await status(env, uid); if (s?.verify_exempt) return true; if (!s?.verified) return false; const last = await lastInboundAt(env, uid); if (!last) return true; return Date.now() - last <= (await getInterval(env, uid)) * 60000; }
 async function isBlocked(env: Env, uid: number) { return !!(await status(env, uid))?.blocked; }
+async function consumeRateLimit(env: Env, uid: number) {
+  const limit = Math.max(1, Number(env.MESSAGES_PER_MINUTE || DEFAULT_MESSAGES_PER_MINUTE));
+  const row = await env.DB.prepare("SELECT window_started_at,message_count FROM rate_limits WHERE user_id=?").bind(uid).first<any>();
+  const started = row?.window_started_at ? Date.parse(row.window_started_at.replace(" ", "T") + "Z") : NaN;
+  if (!row || !Number.isFinite(started) || Date.now() - started >= 60000) {
+    await env.DB.prepare("INSERT INTO rate_limits(user_id,window_started_at,message_count) VALUES(?,?,1) ON CONFLICT(user_id) DO UPDATE SET window_started_at=excluded.window_started_at,message_count=1").bind(uid, now()).run();
+    return true;
+  }
+  const count = Number(row.message_count) + 1;
+  await env.DB.prepare("UPDATE rate_limits SET message_count=? WHERE user_id=?").bind(count, uid).run();
+  return count <= limit;
+}
+async function resetRateLimit(env: Env, uid: number) { await env.DB.prepare("DELETE FROM rate_limits WHERE user_id=?").bind(uid).run(); }
+async function forceReverify(env: Env, uid: number) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=0,challenge_answer='',updated_at=excluded.updated_at").bind(uid, 0, 0, "", now()).run(); }
 async function setBlocked(env: Env, uid: number, blocked: boolean) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,blocked_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET blocked=excluded.blocked, blocked_at=excluded.blocked_at, updated_at=excluded.updated_at").bind(uid, 0, blocked ? 1 : 0, blocked ? now() : null, now()).run(); }
 async function setVerifyExempt(env: Env, uid: number, exempt: boolean) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,verify_exempt,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verify_exempt=excluded.verify_exempt, verified=case when excluded.verify_exempt=1 then 1 else verified end, challenge_answer='', updated_at=excluded.updated_at").bind(uid, exempt ? 1 : 0, 0, exempt ? 1 : 0, "", null, exempt ? now() : null, now()).run(); }
 async function setInterval(env: Env, uid: number, minutes: number) { const m = Math.max(MIN_VERIFY_INTERVAL_MINUTES, Math.min(MAX_VERIFY_INTERVAL_MINUTES, minutes)); await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,verify_interval_minutes,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verify_interval_minutes=excluded.verify_interval_minutes, updated_at=excluded.updated_at").bind(uid, 0, 0, m, now()).run(); }
@@ -171,6 +188,8 @@ async function message(m: TgMessage, env: Env) {
   const t = textOf(m);
   if (t === "/start") { if (await isBlocked(env, u.id)) return send(env, m.chat.id, "当前会话暂不可用。"); if (await isVerified(env, u.id)) return send(env, m.chat.id, "你已通过验证，可以直接发送内容。"); const c = await createChallenge(env, u.id); return send(env, m.chat.id, `请先完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
   if (await isBlocked(env, u.id)) return send(env, m.chat.id, "当前会话暂不可用。");
+  const s = await status(env, u.id);
+  if (!s?.verify_exempt && !(await consumeRateLimit(env, u.id))) { await forceReverify(env, u.id); const c = await createChallenge(env, u.id); const limit = Math.max(1, Number(env.MESSAGES_PER_MINUTE || DEFAULT_MESSAGES_PER_MINUTE)); return send(env, m.chat.id, `发送过于频繁（每分钟最多 ${limit} 条），请重新完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
   if (!(await isVerified(env, u.id))) { const c = await createChallenge(env, u.id); return send(env, m.chat.id, `请先完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
   const kind = kindOf(m), text = textOf(m), fileId = fileIdFor(m);
   await saveMessage(env, u.id, "user", kind, text, fileId, undefined, m.message_id);
@@ -255,7 +274,7 @@ async function callback(q: TgCallback, env: Env) {
     if (q.from.id !== uid) return answerCb(env, q.id, "这不是你的验证。", true);
     const s = await status(env, uid);
     if (s?.verify_exempt) { await answerCb(env, q.id, "已豁免验证"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "你已被管理员永久豁免验证，可以直接发送内容。"); }
-    if (s && !s.blocked && ans === String(s.challenge_answer || "")) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=1, challenge_answer='', verified_at=excluded.verified_at, updated_at=excluded.updated_at").bind(uid, 1, 0, "", null, now(), now()).run(); await answerCb(env, q.id, "验证通过"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "验证通过。现在可以直接发送内容，我会转给管理员。"); }
+    if (s && !s.blocked && ans === String(s.challenge_answer || "")) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=1, challenge_answer='', verified_at=excluded.verified_at, updated_at=excluded.updated_at").bind(uid, 1, 0, "", null, now(), now()).run(); await resetRateLimit(env, uid); await answerCb(env, q.id, "验证通过"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "验证通过。现在可以直接发送内容，我会转给管理员。"); }
     await answerCb(env, q.id, "验证失败，请重试。", true); await del(env, msg?.chat.id, msg?.message_id); const c = await createChallenge(env, uid); return send(env, q.from.id, `请重新完成人机验证：${c.q}`, { reply_markup: c.reply_markup });
   }
   if (!isAdmin(env, q.from.id)) return;
