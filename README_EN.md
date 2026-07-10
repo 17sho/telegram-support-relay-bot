@@ -429,3 +429,7 @@ You may:
 You must preserve the original copyright and MIT license notices when using or distributing substantial portions of the software. The software is provided “as is,” without warranty.
 
 See [`LICENSE`](LICENSE) for the full text.
+
+---
+
+If this project helps you, please consider giving it a ⭐ **Star** on GitHub. Your support helps more people discover the project and encourages continued maintenance and improvement!
