@@ -1,6 +1,6 @@
 # Cloudflare 网页版部署指南（无需本地命令行）
 
-[返回中文首页](../README.md) | [English README](../README_EN.md)
+[简体中文](CLOUDFLARE_DASHBOARD_ZH.md) | [English](CLOUDFLARE_DASHBOARD_EN.md) | [返回中文首页](../README.md)
 
 本指南介绍如何只使用 **GitHub 网页**和 **Cloudflare Dashboard 网页**部署 Worker 版。整个过程不需要在电脑上安装 Node.js、pnpm 或 Wrangler。
 
@@ -314,3 +314,7 @@ Cloudflare 的变量变更通常需要生成新部署。保存变量后进入 **
 - GitHub Fork 建议开启依赖安全更新；
 - 定期检查 Cloudflare 日志和 D1 使用量；
 - 同一个 Token 不要同时运行服务器版和 Worker 版。
+
+---
+
+如果本指南对你有帮助，欢迎在 GitHub 给项目点一个 ⭐ **Star**！

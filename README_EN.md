@@ -50,7 +50,7 @@ Open [@userinfobot](https://t.me/userinfobot), send any message, and record the 
 
 > **Choose only one edition.** Never run both with the same Bot Token.
 >
-> Prefer a browser-only setup? A detailed **[Chinese Cloudflare Dashboard guide](docs/CLOUDFLARE_DASHBOARD_ZH.md)** is also available.
+> Prefer a browser-only setup? See the detailed **[Cloudflare Dashboard deployment guide](docs/CLOUDFLARE_DASHBOARD_EN.md)**. [中文版](docs/CLOUDFLARE_DASHBOARD_ZH.md) is also available.
 
 ---
 
