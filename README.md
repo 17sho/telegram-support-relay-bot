@@ -33,7 +33,23 @@
 2. 发送 `/newbot`。
 3. 按提示设置机器人显示名称和以 `bot` 结尾的用户名。
 4. 保存 BotFather 返回的 Bot Token。Token 相当于机器人密码，不要发给他人，也不要提交到 Git。
-5. 可选：向 BotFather 发送 `/setdescription`、`/setabouttext` 和 `/setuserpic` 完善机器人资料。
+5. 建议继续完善机器人资料：发送 `/mybots`，选择你的机器人，然后进入 **Edit Bot**：
+   - **Edit Name**：设置顶部显示名称；
+   - **Edit Description**：设置资料页“它能做什么？”下方的长描述；
+   - **Edit About**：设置简短介绍；
+   - **Edit Botpic**：上传机器人头像；
+   - **Edit Username**：修改以 `bot` 结尾的用户名。
+
+例如，在 **Edit Description** 中可以填写：
+
+```text
+📬 联系请用此 Bot | Contact via this Bot
+🔗 https://t.me/你的机器人用户名
+⚠️ 非熟人勿直接私信，否则自动归档
+⚠️ No direct DMs from strangers, auto-archived
+```
+
+也可以直接向 BotFather 发送 `/setdescription`、`/setabouttext` 和 `/setuserpic`。其中 `/setdescription` 对应 Telegram 资料页的“它能做什么？”区域。
 
 如果 Token 泄露，请立即在 BotFather 中发送 `/revoke` 使旧 Token 失效。
 

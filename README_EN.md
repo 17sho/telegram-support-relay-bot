@@ -33,7 +33,23 @@ This repository provides two alternative implementations:
 2. Send `/newbot`.
 3. Follow the prompts to choose a display name and a username ending in `bot`.
 4. Save the Bot Token returned by BotFather. Treat it like a password: never share it or commit it to Git.
-5. Optional: use `/setdescription`, `/setabouttext`, and `/setuserpic` in BotFather to customize the bot profile.
+5. You should also complete the bot profile. Send `/mybots`, select your bot, and open **Edit Bot**:
+   - **Edit Name**: sets the display name shown at the top;
+   - **Edit Description**: sets the longer text under “What can this bot do?” on the profile page;
+   - **Edit About**: sets the short About text;
+   - **Edit Botpic**: uploads the bot profile picture;
+   - **Edit Username**: changes the username ending in `bot`.
+
+For example, you can enter this under **Edit Description**:
+
+```text
+📬 Contact via this Bot | 请用此 Bot 联系
+🔗 https://t.me/your_bot_username
+⚠️ No direct DMs from strangers, auto-archived
+⚠️ 非熟人勿直接私信，否则自动归档
+```
+
+You may alternatively send `/setdescription`, `/setabouttext`, and `/setuserpic` directly to BotFather. `/setdescription` controls the “What can this bot do?” section of the Telegram bot profile.
 
 If the Token is exposed, use `/revoke` in BotFather immediately to invalidate it.
 
