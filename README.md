@@ -1,5 +1,7 @@
 # Telegram Support Relay Bot
 
+[简体中文](README.md) | [English](README_EN.md)
+
 一个开源的 Telegram 双向客服/匿名中转机器人。普通用户给机器人发消息，机器人将消息转给管理员；管理员可以引用回复或选择会话后回复。
 
 仓库同时提供两种实现，任选其一：
