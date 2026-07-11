@@ -194,7 +194,7 @@ async function message(m: TgMessage, env: Env) {
   const kind = kindOf(m), text = textOf(m), fileId = fileIdFor(m);
   await saveMessage(env, u.id, "user", kind, text, fileId, undefined, m.message_id);
   await markUnread(env, u.id);
-  const header = `<b>🔴 新消息 · 未处理 ${await unreadCount(env, u.id)} 条</b>\n${esc(displayName({ ...u, user_id: u.id }))}\n\n${esc((text || kind).slice(0, 1600))}`.slice(0, MAX_TEXT);
+  const header = `<b>🔴 新消息</b>\n${esc(displayName({ ...u, user_id: u.id }))}\n\n${esc((text || kind).slice(0, 1600))}`.slice(0, MAX_TEXT);
   for (const admin of admins(env)) {
     for (const oldMid of await previousAdminMessageIds(env, admin, u.id)) await clearKeyboard(env, admin, oldMid);
     const isCurrent = (await selected(env, admin)) === u.id;

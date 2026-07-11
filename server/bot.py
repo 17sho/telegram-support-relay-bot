@@ -704,7 +704,7 @@ async def forward_to_admins(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     previous_admin_message_id = previous_row["admin_message_id"] if previous_row else None
     save_message(user.id, "user", kind, text, file_id, user_message_id=msg.message_id)
     mark_unread(user.id)
-    header = f"<b>🔴 新消息 · 未处理 {unread_count(user.id)} 条</b>\n{html.escape(display_name(user))}\n\n{html.escape(text[:1600] if text else kind)}"
+    header = f"<b>🔴 新消息</b>\n{html.escape(display_name(user))}\n\n{html.escape(text[:1600] if text else kind)}"
     for admin_id in ADMIN_IDS:
         try:
             with db() as conn:
