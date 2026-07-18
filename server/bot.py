@@ -194,6 +194,11 @@ def lock_message(lock: datetime) -> str:
     return f"验证失败次数过多，已暂停验证24小时。可于 {lock.strftime('%Y-%m-%d %H:%M')} 后重试。"
 
 
+def challenge_expired(row: sqlite3.Row | None) -> bool:
+    started = parse_time(row["challenge_at"]) if row and row["challenge_at"] else None
+    return not started or datetime.now() - started > timedelta(minutes=2)
+
+
 def force_reverify(user_id: int) -> None:
     with db() as conn:
         conn.execute(
@@ -856,7 +861,7 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await query.answer("已豁免验证")
             await delete_message_quietly(query.message)
             await query.message.reply_text("你已被管理员永久豁免验证，可以直接发送内容。")
-        elif row and not row["blocked"] and answer == (row["challenge_answer"] or ""):
+        elif row and not row["blocked"] and not challenge_expired(row) and answer == (row["challenge_answer"] or ""):
             set_verified(user_id)
             reset_rate_limit(user_id)
             reset_verification_failures(user_id)
