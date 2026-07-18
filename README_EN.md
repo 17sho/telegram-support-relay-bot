@@ -38,7 +38,7 @@ This repository provides two alternative implementations:
 - The Cloudflare Worker edition now immediately ignores group, supergroup, and channel messages.
 - Existing private-chat relay, verification, and conversation-management behavior remains unchanged.
 - Added CAPTCHA brute-force protection: two consecutive failures trigger a 24-hour lock; a successful verification clears the failure count.
-- 🔐 Hardened human verification with six randomized challenge types: three-number addition, subtraction, two-digit multiplication, mixed operations, number sequences, and second-largest-number selection.
+- 🔐 Hardened human verification with six randomized challenge types: three-number addition, subtraction, single-digit multiplication, simple mixed operations, number sequences, and second-largest-number selection; two-digit multiplication is not used.
 - 🔐 Increased answer choices from four to eight and replaced them with shuffled near-value distractors to reduce random-click and simple-script passes.
 - ⏱️ Each challenge is valid for two minutes; an unanswered challenge older than two minutes counts as a failed attempt.
 

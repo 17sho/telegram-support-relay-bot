@@ -139,8 +139,8 @@ async function createChallenge(env: Env, uid: number) {
   const type = ["add3", "sub", "mul", "mixed", "sequence", "second_max"][rand(0, 5)]; let q = ""; let ans = ""; let choices: string[] | undefined;
   if (type === "add3") { const a=rand(11,49), b=rand(11,49), c=rand(11,49); ans=String(a+b+c); q=`请计算：${a} + ${b} + ${c} = ?`; }
   else if (type === "sub") { const b=rand(12,49), result=rand(15,69), a=b+result; ans=String(result); q=`请计算：${a} − ${b} = ?`; }
-  else if (type === "mul") { const a=rand(11,19), b=rand(3,9); ans=String(a*b); q=`请计算：${a} × ${b} = ?`; }
-  else if (type === "mixed") { const a=rand(3,12), b=rand(2,9), c=rand(5,25); ans=String(a*b+c); q=`先乘后加：${a} × ${b} + ${c} = ?`; }
+  else if (type === "mul") { const a=rand(2,9), b=rand(2,9); ans=String(a*b); q=`请计算：${a} × ${b} = ?`; }
+  else if (type === "mixed") { const a=rand(2,9), b=rand(2,5), c=rand(3,15); ans=String(a*b+c); q=`先乘后加：${a} × ${b} + ${c} = ?`; }
   else if (type === "sequence") { const start=rand(3,25), step=rand(3,12), nums=[0,1,2,3,4].map(i=>start+step*i); ans=String(nums[4]); q=`找规律，下一项是？ ${nums[0]}，${nums[1]}，${nums[2]}，${nums[3]}，?`; }
   else { const nums = new Set<number>(); while (nums.size < 8) nums.add(rand(10, 99)); choices = [...nums].map(String).sort(() => Math.random() - 0.5); ans = String([...nums].sort((a,b)=>b-a)[1]); q = "请点击第二大的数字"; }
   await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET challenge_answer=excluded.challenge_answer, challenge_at=excluded.challenge_at, updated_at=excluded.updated_at").bind(uid, 0, 0, ans, now(), now()).run();

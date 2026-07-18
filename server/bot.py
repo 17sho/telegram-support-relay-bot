@@ -476,13 +476,13 @@ def create_challenge(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
         question = f"请计算：{left} − {right} = ?"
         keyboard = challenge_keyboard(user_id, answer)
     elif challenge_type == "mul":
-        left = random.randint(11, 19)
-        right = random.randint(3, 9)
+        left = random.randint(2, 9)
+        right = random.randint(2, 9)
         answer = str(left * right)
         question = f"请计算：{left} × {right} = ?"
         keyboard = challenge_keyboard(user_id, answer)
     elif challenge_type == "mixed":
-        left, middle, right = random.randint(3, 12), random.randint(2, 9), random.randint(5, 25)
+        left, middle, right = random.randint(2, 9), random.randint(2, 5), random.randint(3, 15)
         answer = str(left * middle + right)
         question = f"先乘后加：{left} × {middle} + {right} = ?"
         keyboard = challenge_keyboard(user_id, answer)
