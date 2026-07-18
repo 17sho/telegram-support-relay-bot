@@ -28,10 +28,10 @@ type DbUser = TgUser & { user_id: number; unread_count?: number; created_at?: st
 type DbMsg = { id: number; user_id: number; direction: string; kind: string; text?: string; file_id?: string; admin_message_id?: number; user_message_id?: number; created_at: string };
 
 const MAX_TEXT = 3500;
-const VERIFY_INTERVAL_PRESETS: [number, string][] = [[1, "立即验证"], [60, "1小时"], [360, "6小时"], [1440, "24小时"]];
+const VERIFY_INTERVAL_PRESETS: [number, string][] = [[0, "立即验证"], [60, "1小时"], [360, "6小时"], [1440, "24小时"]];
 const DEFAULT_VERIFY_INTERVAL_MINUTES = 360;
 const DEFAULT_MESSAGES_PER_MINUTE = 40;
-const MIN_VERIFY_INTERVAL_MINUTES = 1;
+const MIN_VERIFY_INTERVAL_MINUTES = 0;
 const MAX_VERIFY_INTERVAL_MINUTES = 43200;
 
 export default {

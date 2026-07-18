@@ -25,9 +25,9 @@ ADMIN_IDS = {int(x) for x in os.environ.get("ADMIN_IDS", "").replace(" ", "").sp
 MAX_TEXT = 3500
 DEFAULT_VERIFY_INTERVAL_MINUTES = int(os.environ.get("DEFAULT_VERIFY_INTERVAL_MINUTES", "360"))
 MESSAGES_PER_MINUTE = max(1, int(os.environ.get("MESSAGES_PER_MINUTE", "40")))
-MIN_VERIFY_INTERVAL_MINUTES = 1
+MIN_VERIFY_INTERVAL_MINUTES = 0
 MAX_VERIFY_INTERVAL_MINUTES = 43200
-VERIFY_INTERVAL_PRESETS = [(1, "立即验证"), (60, "1小时"), (360, "6小时"), (1440, "24小时")]
+VERIFY_INTERVAL_PRESETS = [(0, "立即验证"), (60, "1小时"), (360, "6小时"), (1440, "24小时")]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("tg-relay-bot")
