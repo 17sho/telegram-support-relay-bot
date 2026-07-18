@@ -27,7 +27,7 @@ DEFAULT_VERIFY_INTERVAL_MINUTES = int(os.environ.get("DEFAULT_VERIFY_INTERVAL_MI
 MESSAGES_PER_MINUTE = max(1, int(os.environ.get("MESSAGES_PER_MINUTE", "40")))
 MIN_VERIFY_INTERVAL_MINUTES = 1
 MAX_VERIFY_INTERVAL_MINUTES = 43200
-VERIFY_INTERVAL_PRESETS = [(1, "1分钟测试"), (60, "1小时"), (360, "6小时"), (1440, "24小时")]
+VERIFY_INTERVAL_PRESETS = [(1, "立即验证"), (60, "1小时"), (360, "6小时"), (1440, "24小时")]
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("tg-relay-bot")
