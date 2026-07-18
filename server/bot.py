@@ -680,7 +680,9 @@ async def unblock_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def forward_to_admins(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     msg = update.effective_message
     user = update.effective_user
-    if not msg or not user or is_admin(user.id):
+    # This relay is private-chat only. Never challenge or forward messages
+    # from groups where the bot has been added as an administrator.
+    if not msg or msg.chat.type != "private" or not user or is_admin(user.id):
         return
     upsert_user(user)
     if is_blocked(user.id):
@@ -936,19 +938,20 @@ def main() -> None:
         raise RuntimeError("ADMIN_IDS is required")
     init_db()
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CommandHandler("help", admin_help))
-    app.add_handler(CommandHandler("list", list_cmd))
-    app.add_handler(CommandHandler("sessions", list_cmd))
-    app.add_handler(CommandHandler("search", search_cmd))
-    app.add_handler(CommandHandler("blocked", blocked_cmd))
-    app.add_handler(CommandHandler("select", select_cmd))
-    app.add_handler(CommandHandler("history", history_cmd))
-    app.add_handler(CommandHandler("block", block_cmd))
-    app.add_handler(CommandHandler("unblock", unblock_cmd))
+    private_chat = filters.ChatType.PRIVATE
+    app.add_handler(CommandHandler("start", start_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("help", admin_help, filters=private_chat))
+    app.add_handler(CommandHandler("list", list_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("sessions", list_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("search", search_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("blocked", blocked_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("select", select_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("history", history_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("block", block_cmd, filters=private_chat))
+    app.add_handler(CommandHandler("unblock", unblock_cmd, filters=private_chat))
     app.add_handler(CallbackQueryHandler(callbacks))
-    app.add_handler(MessageHandler(filters.ALL & filters.Chat(list(ADMIN_IDS)) & ~filters.COMMAND, admin_message))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, forward_to_admins))
+    app.add_handler(MessageHandler(private_chat & filters.ALL & filters.Chat(list(ADMIN_IDS)) & ~filters.COMMAND, admin_message))
+    app.add_handler(MessageHandler(private_chat & filters.ALL & ~filters.COMMAND, forward_to_admins))
     log.info("starting relay bot admins=%s", sorted(ADMIN_IDS))
     app.run_polling(drop_pending_updates=False, allowed_updates=Update.ALL_TYPES)
 

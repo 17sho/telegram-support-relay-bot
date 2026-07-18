@@ -182,6 +182,9 @@ async function sendMediaPreview(env: Env, chat: number, row: DbMsg) {
 }
 async function handleUpdate(up: TgUpdate, env: Env) { if (up.callback_query) return callback(up.callback_query, env); if (up.message) return message(up.message, env); }
 async function message(m: TgMessage, env: Env) {
+  // The relay is intentionally private-chat only. Ignore groups, supergroups,
+  // and channels even when the bot is installed there as an administrator.
+  if (m.chat.type !== "private") return;
   const u = m.from; if (!u) return;
   if (isAdmin(env, u.id)) return adminMessage(m, env);
   await upsertUser(env, u);
