@@ -385,7 +385,7 @@ def format_interval(minutes: int) -> str:
 
 def get_user_verify_interval_minutes(user_id: int) -> int:
     row = get_user_status(user_id)
-    value = row["verify_interval_minutes"] if row and row["verify_interval_minutes"] else DEFAULT_VERIFY_INTERVAL_MINUTES
+    value = row["verify_interval_minutes"] if row and row["verify_interval_minutes"] is not None else DEFAULT_VERIFY_INTERVAL_MINUTES
     try:
         minutes = int(value)
     except (TypeError, ValueError):
