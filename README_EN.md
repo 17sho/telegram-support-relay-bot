@@ -32,7 +32,9 @@ This repository provides two alternative implementations:
 
 ### 2026-07-18
 
-- 🛡️ Fixed group messages being incorrectly detected and relayed after the bot was added to a group as an administrator.
+- 🛠️ Fixed verification expiry misclassification: the verification success time is now treated as valid activity, preventing users from being asked to verify again immediately after passing when their previous message is old.
+- 🛠️ Applied the fix to both the Python server and Cloudflare Worker implementations; successful verification also clears stale challenge state.
+- 🛡️ Fixed incorrect recognition and forwarding of group messages after the bot was added to a group as an administrator.
 - 🛡️ Fixed group members being incorrectly asked to complete human verification.
 - Restricted commands, administrator replies, and user relay handling to private chats in the Python server edition.
 - The Cloudflare Worker edition now immediately ignores group, supergroup, and channel messages.

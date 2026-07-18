@@ -410,11 +410,14 @@ def is_verified(user_id: int) -> bool:
         return True
     if not row or not row["verified"]:
         return False
+    # 验证成功本身也是一次有效活动。取验证时间和最后一条用户消息中较新的时间，
+    # 避免历史消息使用旧时区/旧时间戳时，用户刚验证成功就立刻再次被要求验证。
+    verified_at = parse_time(row["verified_at"])
     last_user_message = last_inbound_message_at(user_id)
-    if last_user_message is None:
-        # 已验证但还没真正发过消息：保持验证有效，避免刚验证完立刻又要验证。
+    activity_at = max((value for value in (verified_at, last_user_message) if value), default=None)
+    if activity_at is None:
         return True
-    return datetime.now() - last_user_message <= timedelta(minutes=get_user_verify_interval_minutes(user_id))
+    return datetime.now() - activity_at <= timedelta(minutes=get_user_verify_interval_minutes(user_id))
 
 
 def last_inbound_message_at(user_id: int) -> datetime | None:
@@ -446,7 +449,7 @@ def set_verified(user_id: int) -> None:
         conn.execute(
             """insert into user_status(user_id,verified,blocked,challenge_answer,challenge_at,verified_at,updated_at)
                values(?,?,?,?,?,?,?)
-               on conflict(user_id) do update set verified=1, challenge_answer='', verified_at=excluded.verified_at, updated_at=excluded.updated_at""",
+               on conflict(user_id) do update set verified=1, challenge_answer='', challenge_at=null, verified_at=excluded.verified_at, updated_at=excluded.updated_at""",
             (user_id, 1, 0, "", None, now(), now()),
         )
 
