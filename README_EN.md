@@ -13,7 +13,8 @@ This repository provides two alternative implementations:
 
 ## Features
 
-- Two-way text, photo, video, document, voice, audio, and sticker relay
+- **Private chats only:** even if the bot is added to a group as an administrator, it ignores group, supergroup, and channel messages; it neither relays them nor challenges group members
+- Two-way relay for text, photos, videos, documents, voice messages, audio, and stickers
 - Accurate reply and media mapping to prevent messages from reaching the wrong user
 - Recent conversations, search, active conversation, and pending-message counts
 - Paginated conversation history with media preview
@@ -24,6 +25,16 @@ This repository provides two alternative implementations:
 - Retraction of messages sent by an administrator
 - First-run `/start` tutorial and complete `/help` reference
 - Beijing time display
+
+## Changelog
+
+### 2026-07-18
+
+- 🛡️ Fixed group messages being incorrectly detected and relayed after the bot was added to a group as an administrator.
+- 🛡️ Fixed group members being incorrectly asked to complete human verification.
+- Restricted commands, administrator replies, and user relay handling to private chats in the Python server edition.
+- The Cloudflare Worker edition now immediately ignores group, supergroup, and channel messages.
+- Existing private-chat relay, verification, and conversation-management behavior remains unchanged.
 
 ## Before You Deploy
 
