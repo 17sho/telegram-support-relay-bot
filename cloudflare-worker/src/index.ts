@@ -130,14 +130,18 @@ async function updateAdminMessageId(env: Env, uid: number, userMid: number, admi
 async function previousAdminMessageIds(env: Env, adminChatId: number, uid: number) { return ((await env.DB.prepare("SELECT admin_message_id FROM admin_message_map WHERE admin_chat_id=? AND user_id=? ORDER BY created_at DESC LIMIT 20").bind(adminChatId, uid).all<any>()).results || []).map(row => Number(row.admin_message_id)); }
 
 function challengeKeyboard(uid: number, answer: string, choices?: string[]) {
-  if (!choices?.length) { const set = new Set([answer]); while (set.size < 4) set.add(String(rand(2, 81))); choices = [...set].sort((a, b) => Number(a) - Number(b)); }
-  return { inline_keyboard: [choices.map(c => ({ text: c, callback_data: `verify:${uid}:${c}` }))] };
+  if (!choices?.length) { const value = Number(answer), set = new Set([answer]); const nearby = [-12,-8,-5,-3,-2,-1,1,2,3,5,8,12].map(d => value + d).filter(n => n >= 0).sort(() => Math.random() - 0.5); for (const n of nearby) { set.add(String(n)); if (set.size >= 8) break; } while (set.size < 8) set.add(String(rand(Math.max(0, value - 20), value + 20))); choices = [...set].sort(() => Math.random() - 0.5); }
+  const buttons = choices.map(c => ({ text: c, callback_data: `verify:${uid}:${c}` }));
+  return { inline_keyboard: [buttons.slice(0, 4), buttons.slice(4)] };
 }
 async function createChallenge(env: Env, uid: number) {
-  const type = ["add", "mul", "max"][rand(0, 2)]; let q = ""; let ans = ""; let choices: string[] | undefined;
-  if (type === "add") { const a = rand(1, 30), b = rand(1, 30); ans = String(a + b); q = `${a} + ${b} = ?`; }
-  else if (type === "mul") { const a = rand(2, 9), b = rand(2, 9); ans = String(a * b); q = `${a} × ${b} = ?`; }
-  else { const nums = new Set<number>(); while (nums.size < 4) nums.add(rand(10, 99)); choices = [...nums].map(String).sort(() => Math.random() - 0.5); ans = String(Math.max(...[...nums])); q = "请点击最大的数字"; }
+  const type = ["add3", "sub", "mul", "mixed", "sequence", "second_max"][rand(0, 5)]; let q = ""; let ans = ""; let choices: string[] | undefined;
+  if (type === "add3") { const a=rand(11,49), b=rand(11,49), c=rand(11,49); ans=String(a+b+c); q=`请计算：${a} + ${b} + ${c} = ?`; }
+  else if (type === "sub") { const b=rand(12,49), result=rand(15,69), a=b+result; ans=String(result); q=`请计算：${a} − ${b} = ?`; }
+  else if (type === "mul") { const a=rand(11,19), b=rand(3,9); ans=String(a*b); q=`请计算：${a} × ${b} = ?`; }
+  else if (type === "mixed") { const a=rand(3,12), b=rand(2,9), c=rand(5,25); ans=String(a*b+c); q=`先乘后加：${a} × ${b} + ${c} = ?`; }
+  else if (type === "sequence") { const start=rand(3,25), step=rand(3,12), nums=[0,1,2,3,4].map(i=>start+step*i); ans=String(nums[4]); q=`找规律，下一项是？ ${nums[0]}，${nums[1]}，${nums[2]}，${nums[3]}，?`; }
+  else { const nums = new Set<number>(); while (nums.size < 8) nums.add(rand(10, 99)); choices = [...nums].map(String).sort(() => Math.random() - 0.5); ans = String([...nums].sort((a,b)=>b-a)[1]); q = "请点击第二大的数字"; }
   await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET challenge_answer=excluded.challenge_answer, challenge_at=excluded.challenge_at, updated_at=excluded.updated_at").bind(uid, 0, 0, ans, now(), now()).run();
   return { q, reply_markup: challengeKeyboard(uid, ans, choices) };
 }

@@ -21,6 +21,7 @@ This repository provides two alternative implementations:
 - Block list and confirmation before unblocking
 - Per-user CAPTCHA verification, verification intervals, and permanent exemptions
 - Verification is suspended for 24 hours after two consecutive failed attempts
+- Harder randomized challenges include three-number addition, subtraction, two-digit multiplication, mixed operations, number sequences, and second-largest-number selection with eight shuffled near-value choices
 - Configurable per-user message rate limit (40 messages per minute by default); exceeding it requires human verification again
 - Helps prevent message flooding and protects administrator chats and Cloudflare free-tier quotas
 - Retraction of messages sent by an administrator

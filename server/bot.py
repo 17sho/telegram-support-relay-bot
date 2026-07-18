@@ -312,11 +312,19 @@ def verify_time_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def challenge_keyboard(user_id: int, answer: str, choices: list[str] | None = None) -> InlineKeyboardMarkup:
     if not choices:
         choices_set = {answer}
-        while len(choices_set) < 4:
-            choices_set.add(str(random.randint(2, 81)))
-        choices = sorted(choices_set, key=int)
+        value = int(answer)
+        nearby = [value + delta for delta in (-12, -8, -5, -3, -2, -1, 1, 2, 3, 5, 8, 12) if value + delta >= 0]
+        random.shuffle(nearby)
+        for candidate in nearby:
+            choices_set.add(str(candidate))
+            if len(choices_set) >= 8:
+                break
+        while len(choices_set) < 8:
+            choices_set.add(str(random.randint(max(0, value - 20), value + 20)))
+        choices = list(choices_set)
+        random.shuffle(choices)
     buttons = [InlineKeyboardButton(choice, callback_data=f"verify:{user_id}:{choice}") for choice in choices]
-    return InlineKeyboardMarkup([buttons])
+    return InlineKeyboardMarkup([buttons[:4], buttons[4:]])
 
 
 def media_label(kind: str) -> str:
@@ -449,25 +457,42 @@ def set_verify_exempt(user_id: int, exempt: bool) -> None:
 
 
 def create_challenge(user_id: int) -> tuple[str, InlineKeyboardMarkup]:
-    challenge_type = random.choice(["add", "mul", "max"])
-    if challenge_type == "add":
-        left = random.randint(1, 30)
-        right = random.randint(1, 30)
-        answer = str(left + right)
-        question = f"{left} + {right} = ?"
+    challenge_type = random.choice(["add3", "sub", "mul", "mixed", "sequence", "second_max"])
+    if challenge_type == "add3":
+        left, middle, right = (random.randint(11, 49) for _ in range(3))
+        answer = str(left + middle + right)
+        question = f"请计算：{left} + {middle} + {right} = ?"
+        keyboard = challenge_keyboard(user_id, answer)
+    elif challenge_type == "sub":
+        right = random.randint(12, 49)
+        answer_value = random.randint(15, 69)
+        left = right + answer_value
+        answer = str(answer_value)
+        question = f"请计算：{left} − {right} = ?"
         keyboard = challenge_keyboard(user_id, answer)
     elif challenge_type == "mul":
-        left = random.randint(2, 9)
-        right = random.randint(2, 9)
+        left = random.randint(11, 19)
+        right = random.randint(3, 9)
         answer = str(left * right)
-        question = f"{left} × {right} = ?"
+        question = f"请计算：{left} × {right} = ?"
+        keyboard = challenge_keyboard(user_id, answer)
+    elif challenge_type == "mixed":
+        left, middle, right = random.randint(3, 12), random.randint(2, 9), random.randint(5, 25)
+        answer = str(left * middle + right)
+        question = f"先乘后加：{left} × {middle} + {right} = ?"
+        keyboard = challenge_keyboard(user_id, answer)
+    elif challenge_type == "sequence":
+        start, step = random.randint(3, 25), random.randint(3, 12)
+        sequence = [start + step * i for i in range(5)]
+        answer = str(sequence[-1])
+        question = f"找规律，下一项是？ {sequence[0]}，{sequence[1]}，{sequence[2]}，{sequence[3]}，?"
         keyboard = challenge_keyboard(user_id, answer)
     else:
-        numbers = random.sample(range(10, 100), 4)
-        answer = str(max(numbers))
+        numbers = random.sample(range(10, 100), 8)
+        answer = str(sorted(numbers, reverse=True)[1])
         choices = [str(n) for n in numbers]
         random.shuffle(choices)
-        question = "请点击最大的数字"
+        question = "请点击第二大的数字"
         keyboard = challenge_keyboard(user_id, answer, choices)
     with db() as conn:
         conn.execute(
