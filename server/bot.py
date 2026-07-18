@@ -96,6 +96,12 @@ def init_db() -> None:
           window_started_at text not null,
           message_count integer not null default 0
         );
+        create table if not exists verification_attempts(
+          user_id integer primary key,
+          failed_attempts integer not null default 0,
+          locked_until text,
+          updated_at text not null
+        );
         create table if not exists settings(
           key text primary key,
           value text not null,
@@ -156,6 +162,36 @@ def consume_rate_limit(user_id: int) -> bool:
 def reset_rate_limit(user_id: int) -> None:
     with db() as conn:
         conn.execute("delete from rate_limits where user_id=?", (user_id,))
+
+
+def verification_lock_until(user_id: int) -> datetime | None:
+    with db() as conn:
+        row = conn.execute("select locked_until from verification_attempts where user_id=?", (user_id,)).fetchone()
+        lock = parse_time(row["locked_until"]) if row else None
+        if lock and lock <= datetime.now():
+            conn.execute("delete from verification_attempts where user_id=?", (user_id,))
+            return None
+        return lock
+
+
+def record_verification_failure(user_id: int) -> datetime | None:
+    with db() as conn:
+        row = conn.execute("select failed_attempts from verification_attempts where user_id=?", (user_id,)).fetchone()
+        failures = (int(row["failed_attempts"]) if row else 0) + 1
+        lock = datetime.now() + timedelta(hours=24) if failures >= 2 else None
+        conn.execute("insert into verification_attempts(user_id,failed_attempts,locked_until,updated_at) values(?,?,?,?) on conflict(user_id) do update set failed_attempts=excluded.failed_attempts,locked_until=excluded.locked_until,updated_at=excluded.updated_at", (user_id, failures, lock.strftime("%Y-%m-%d %H:%M:%S") if lock else None, now()))
+        if lock:
+            conn.execute("update user_status set challenge_answer='',challenge_at=null,updated_at=? where user_id=?", (now(), user_id))
+        return lock
+
+
+def reset_verification_failures(user_id: int) -> None:
+    with db() as conn:
+        conn.execute("delete from verification_attempts where user_id=?", (user_id,))
+
+
+def lock_message(lock: datetime) -> str:
+    return f"验证失败次数过多，已暂停验证24小时。可于 {lock.strftime('%Y-%m-%d %H:%M')} 后重试。"
 
 
 def force_reverify(user_id: int) -> None:
@@ -521,6 +557,10 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if is_blocked(user.id):
             await update.effective_message.reply_text("当前会话暂不可用。")
             return
+        lock = verification_lock_until(user.id)
+        if lock:
+            await update.effective_message.reply_text(lock_message(lock))
+            return
         if is_verified(user.id):
             await update.effective_message.reply_text("你已通过验证，可以直接发送内容。")
             return
@@ -688,6 +728,10 @@ async def forward_to_admins(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if is_blocked(user.id):
         await msg.reply_text("当前会话暂不可用。")
         return
+    lock = verification_lock_until(user.id)
+    if lock:
+        await msg.reply_text(lock_message(lock))
+        return
     status_row = get_user_status(user.id)
     if not (status_row and status_row["verify_exempt"]) and not consume_rate_limit(user.id):
         force_reverify(user.id)
@@ -777,6 +821,12 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await query.answer("这不是你的验证。", show_alert=True)
             return
         row = get_user_status(user_id)
+        lock = verification_lock_until(user_id)
+        if lock:
+            await query.answer("验证已暂停", show_alert=True)
+            await delete_message_quietly(query.message)
+            await query.message.reply_text(lock_message(lock))
+            return
         if row and row["verify_exempt"]:
             await query.answer("已豁免验证")
             await delete_message_quietly(query.message)
@@ -784,14 +834,19 @@ async def callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         elif row and not row["blocked"] and answer == (row["challenge_answer"] or ""):
             set_verified(user_id)
             reset_rate_limit(user_id)
+            reset_verification_failures(user_id)
             await query.answer("验证通过")
             await delete_message_quietly(query.message)
             await query.message.reply_text("验证通过。现在可以直接发送内容，我会转给管理员。")
         else:
-            await query.answer("验证失败，请重试。", show_alert=True)
+            lock = record_verification_failure(user_id)
+            await query.answer("验证失败，已暂停24小时。" if lock else "验证失败，还可重试1次。", show_alert=True)
             await delete_message_quietly(query.message)
-            question, keyboard = create_challenge(user_id)
-            await query.message.reply_text(f"请重新完成人机验证：{question}", reply_markup=keyboard)
+            if lock:
+                await query.message.reply_text(lock_message(lock))
+            else:
+                question, keyboard = create_challenge(user_id)
+                await query.message.reply_text(f"验证失败，还可重试1次：{question}", reply_markup=keyboard)
         return
     if not is_admin(query.from_user.id):
         return

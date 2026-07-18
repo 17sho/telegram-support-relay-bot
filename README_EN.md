@@ -19,7 +19,8 @@ This repository provides two alternative implementations:
 - Recent conversations, search, active conversation, and pending-message counts
 - Paginated conversation history with media preview
 - Block list and confirmation before unblocking
-- Per-user human verification, verification interval, and permanent exemption
+- Per-user CAPTCHA verification, verification intervals, and permanent exemptions
+- Verification is suspended for 24 hours after two consecutive failed attempts
 - Configurable per-user message rate limit (40 messages per minute by default); exceeding it requires human verification again
 - Helps prevent message flooding and protects administrator chats and Cloudflare free-tier quotas
 - Retraction of messages sent by an administrator
@@ -35,6 +36,7 @@ This repository provides two alternative implementations:
 - Restricted commands, administrator replies, and user relay handling to private chats in the Python server edition.
 - The Cloudflare Worker edition now immediately ignores group, supergroup, and channel messages.
 - Existing private-chat relay, verification, and conversation-management behavior remains unchanged.
+- Added CAPTCHA brute-force protection: two consecutive failures trigger a 24-hour lock; a successful verification clears the failure count.
 
 ## Before You Deploy
 

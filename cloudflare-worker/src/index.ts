@@ -87,6 +87,7 @@ async function ensureSchema(env: Env) {
     env.DB.prepare("CREATE TABLE IF NOT EXISTS admin_onboarding(admin_id INTEGER PRIMARY KEY, welcomed_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS user_status(user_id INTEGER PRIMARY KEY, verified INTEGER NOT NULL DEFAULT 0, blocked INTEGER NOT NULL DEFAULT 0, verify_exempt INTEGER NOT NULL DEFAULT 0, verify_interval_minutes INTEGER, challenge_answer TEXT, challenge_at TEXT, verified_at TEXT, blocked_at TEXT, updated_at TEXT)"),
     env.DB.prepare("CREATE TABLE IF NOT EXISTS rate_limits(user_id INTEGER PRIMARY KEY, window_started_at TEXT NOT NULL, message_count INTEGER NOT NULL DEFAULT 0)"),
+    env.DB.prepare("CREATE TABLE IF NOT EXISTS verification_attempts(user_id INTEGER PRIMARY KEY, failed_attempts INTEGER NOT NULL DEFAULT 0, locked_until TEXT, updated_at TEXT NOT NULL)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_user_created ON messages(user_id, created_at DESC)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_admin_message ON messages(admin_message_id)"),
   ]);
@@ -111,6 +112,10 @@ async function consumeRateLimit(env: Env, uid: number) {
   return count <= limit;
 }
 async function resetRateLimit(env: Env, uid: number) { await env.DB.prepare("DELETE FROM rate_limits WHERE user_id=?").bind(uid).run(); }
+async function verificationLockUntil(env: Env, uid: number) { const row = await env.DB.prepare("SELECT locked_until FROM verification_attempts WHERE user_id=?").bind(uid).first<any>(); if (!row?.locked_until) return null; const lock = Date.parse(row.locked_until.replace(" ", "T") + "Z"); if (!Number.isFinite(lock) || lock <= Date.now()) { await env.DB.prepare("DELETE FROM verification_attempts WHERE user_id=?").bind(uid).run(); return null; } return lock; }
+async function recordVerificationFailure(env: Env, uid: number) { const row = await env.DB.prepare("SELECT failed_attempts FROM verification_attempts WHERE user_id=?").bind(uid).first<any>(); const failures = Number(row?.failed_attempts || 0) + 1; const lock = failures >= 2 ? Date.now() + 86400000 : null; const lockText = lock ? new Date(lock).toISOString().slice(0, 19).replace("T", " ") : null; await env.DB.prepare("INSERT INTO verification_attempts(user_id,failed_attempts,locked_until,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET failed_attempts=excluded.failed_attempts,locked_until=excluded.locked_until,updated_at=excluded.updated_at").bind(uid, failures, lockText, now()).run(); if (lock) await env.DB.prepare("UPDATE user_status SET challenge_answer='',challenge_at=null,updated_at=? WHERE user_id=?").bind(now(), uid).run(); return lock; }
+async function resetVerificationFailures(env: Env, uid: number) { await env.DB.prepare("DELETE FROM verification_attempts WHERE user_id=?").bind(uid).run(); }
+function lockMessage(lock: number) { return `验证失败次数过多，已暂停验证24小时。可于 ${new Date(lock).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })} 后重试。`; }
 async function forceReverify(env: Env, uid: number) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=0,challenge_answer='',updated_at=excluded.updated_at").bind(uid, 0, 0, "", now()).run(); }
 async function setBlocked(env: Env, uid: number, blocked: boolean) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,blocked_at,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET blocked=excluded.blocked, blocked_at=excluded.blocked_at, updated_at=excluded.updated_at").bind(uid, 0, blocked ? 1 : 0, blocked ? now() : null, now()).run(); }
 async function setVerifyExempt(env: Env, uid: number, exempt: boolean) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,verify_exempt,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verify_exempt=excluded.verify_exempt, verified=case when excluded.verify_exempt=1 then 1 else verified end, challenge_answer='', updated_at=excluded.updated_at").bind(uid, exempt ? 1 : 0, 0, exempt ? 1 : 0, "", null, exempt ? now() : null, now()).run(); }
@@ -189,8 +194,9 @@ async function message(m: TgMessage, env: Env) {
   if (isAdmin(env, u.id)) return adminMessage(m, env);
   await upsertUser(env, u);
   const t = textOf(m);
-  if (t === "/start") { if (await isBlocked(env, u.id)) return send(env, m.chat.id, "当前会话暂不可用。"); if (await isVerified(env, u.id)) return send(env, m.chat.id, "你已通过验证，可以直接发送内容。"); const c = await createChallenge(env, u.id); return send(env, m.chat.id, `请先完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
+  if (t === "/start") { if (await isBlocked(env, u.id)) return send(env, m.chat.id, "当前会话暂不可用。"); const lock = await verificationLockUntil(env, u.id); if (lock) return send(env, m.chat.id, lockMessage(lock)); if (await isVerified(env, u.id)) return send(env, m.chat.id, "你已通过验证，可以直接发送内容。"); const c = await createChallenge(env, u.id); return send(env, m.chat.id, `请先完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
   if (await isBlocked(env, u.id)) return send(env, m.chat.id, "当前会话暂不可用。");
+  const verificationLock = await verificationLockUntil(env, u.id); if (verificationLock) return send(env, m.chat.id, lockMessage(verificationLock));
   const s = await status(env, u.id);
   if (!s?.verify_exempt && !(await consumeRateLimit(env, u.id))) { await forceReverify(env, u.id); const c = await createChallenge(env, u.id); const limit = Math.max(1, Number(env.MESSAGES_PER_MINUTE || DEFAULT_MESSAGES_PER_MINUTE)); return send(env, m.chat.id, `发送过于频繁（每分钟最多 ${limit} 条），请重新完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
   if (!(await isVerified(env, u.id))) { const c = await createChallenge(env, u.id); return send(env, m.chat.id, `请先完成人机验证：${c.q}`, { reply_markup: c.reply_markup }); }
@@ -276,9 +282,10 @@ async function callback(q: TgCallback, env: Env) {
     const [, uidS, ans] = data.split(":", 3); const uid = Number(uidS);
     if (q.from.id !== uid) return answerCb(env, q.id, "这不是你的验证。", true);
     const s = await status(env, uid);
+    const lock = await verificationLockUntil(env, uid); if (lock) { await answerCb(env, q.id, "验证已暂停", true); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, lockMessage(lock)); }
     if (s?.verify_exempt) { await answerCb(env, q.id, "已豁免验证"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "你已被管理员永久豁免验证，可以直接发送内容。"); }
-    if (s && !s.blocked && ans === String(s.challenge_answer || "")) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=1, challenge_answer='', verified_at=excluded.verified_at, updated_at=excluded.updated_at").bind(uid, 1, 0, "", null, now(), now()).run(); await resetRateLimit(env, uid); await answerCb(env, q.id, "验证通过"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "验证通过。现在可以直接发送内容，我会转给管理员。"); }
-    await answerCb(env, q.id, "验证失败，请重试。", true); await del(env, msg?.chat.id, msg?.message_id); const c = await createChallenge(env, uid); return send(env, q.from.id, `请重新完成人机验证：${c.q}`, { reply_markup: c.reply_markup });
+    if (s && !s.blocked && ans === String(s.challenge_answer || "")) { await env.DB.prepare("INSERT INTO user_status(user_id,verified,blocked,challenge_answer,challenge_at,verified_at,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET verified=1, challenge_answer='', verified_at=excluded.verified_at, updated_at=excluded.updated_at").bind(uid, 1, 0, "", null, now(), now()).run(); await resetRateLimit(env, uid); await resetVerificationFailures(env, uid); await answerCb(env, q.id, "验证通过"); await del(env, msg?.chat.id, msg?.message_id); return send(env, q.from.id, "验证通过。现在可以直接发送内容，我会转给管理员。"); }
+    const newLock = await recordVerificationFailure(env, uid); await answerCb(env, q.id, newLock ? "验证失败，已暂停24小时。" : "验证失败，还可重试1次。", true); await del(env, msg?.chat.id, msg?.message_id); if (newLock) return send(env, q.from.id, lockMessage(newLock)); const c = await createChallenge(env, uid); return send(env, q.from.id, `验证失败，还可重试1次：${c.q}`, { reply_markup: c.reply_markup });
   }
   if (!isAdmin(env, q.from.id)) return;
   const [act, uidS, val] = data.split(":"); const uid = Number(uidS); await answerCb(env, q.id);
