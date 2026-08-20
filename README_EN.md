@@ -20,8 +20,8 @@ This repository provides two alternative implementations:
 - Paginated conversation history with media preview
 - Block list and confirmation before unblocking
 - Per-user CAPTCHA verification, verification intervals, and permanent exemptions
-- Verification is suspended for 24 hours after two consecutive failed attempts
-- Harder randomized challenges include three-number addition, subtraction, two-digit multiplication, mixed operations, number sequences, and second-largest-number selection with eight shuffled near-value choices
+- Verification is suspended for six hours after two consecutive failed attempts, and the administrator can unlock a contact from the conversation card
+- Five randomized challenge types: image characters, emoji counting, shape counting, odd-one-out, and emoji patterns; callback data never contains the plaintext answer
 - Configurable per-user message rate limit (40 messages per minute by default); exceeding it requires human verification again
 - Helps prevent message flooding and protects administrator chats and Cloudflare free-tier quotas
 - Retraction of messages sent by an administrator
@@ -29,6 +29,16 @@ This repository provides two alternative implementations:
 - Beijing time display
 
 ## Changelog
+
+### 2026-08-20
+
+- ✨ Unified the Python server and Cloudflare Worker editions around five randomized challenge types: image characters, emoji counting, shape counting, odd-one-out, and emoji patterns.
+- 🔐 Replaced plaintext answers in verification callbacks with random tokens. Answers are not exposed in callback data, captions, logs, or filenames, and requesting a new challenge does not count as a failed attempt.
+- 🛡️ Fixed repeated unverified messages generating unlimited challenges. While a two-minute challenge remains valid, later messages are silently ignored, not relayed or stored, and do not consume the normal message rate limit.
+- 🔓 Changed the two-failure verification suspension to six hours and added an administrator action to unlock a contact.
+- 🧹 Added a safe `/cleanup` workflow for records older than 30, 90, or 180 days, or all chat records, with preview and confirmation. Reply mappings, contacts, block state, and verification settings are permanently preserved.
+- 📬 Added delivery status and soft-retraction records, improved media detection, database indexes, transient-state cleanup, and webhook error handling.
+- 👤 Both editions now enforce the single-administrator model. The Python server edition also adds an SQLite busy timeout and 22 regression tests.
 
 ### 2026-07-18
 
